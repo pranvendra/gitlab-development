@@ -1,0 +1,90 @@
+#!/bin/sh
+
+# Try to read the gitlab-workhorse host:port from the environments
+if [ x$host = x ]; then
+  # Try a host file
+  host=$(cat host 2>/dev/null)
+fi
+if [ x$port = x ] ; then
+  # Try a port file
+  port=$(cat port 2>/dev/null)
+fi
+
+# Fall back to localhost:3000
+host=${host:-localhost}
+port=${port:-3000}
+
+print_port() {
+  echo -e "
+
+           \033[38;5;88m\`                        \`
+          :s:                      :s:
+         \`oso\`                    \`oso.
+         +sss+                    +sss+
+        :sssss:                  -sssss:
+       \`ossssso\`                \`ossssso\`
+       +sssssss+                +sssssss+
+      -ooooooooo-++++++++++++++-ooooooooo-
+     \033[38;5;208m\`:/\033[38;5;202m+++++++++\033[38;5;88mosssssssssssso\033[38;5;202m+++++++++\033[38;5;208m/:\`
+     -///\033[38;5;202m+++++++++\033[38;5;88mssssssssssss\033[38;5;202m+++++++++\033[38;5;208m///-
+    .//////\033[38;5;202m+++++++\033[38;5;88mosssssssssso\033[38;5;202m+++++++\033[38;5;208m//////.
+    :///////\033[38;5;202m+++++++\033[38;5;88mosssssssso\033[38;5;202m+++++++\033[38;5;208m///////:
+     .:///////\033[38;5;202m++++++\033[38;5;88mssssssss\033[38;5;202m++++++\033[38;5;208m///////:.\`
+       \`-://///\033[38;5;202m+++++\033[38;5;88mosssssso\033[38;5;202m+++++\033[38;5;208m/////:-\`
+          \`-:////\033[38;5;202m++++\033[38;5;88mosssso\033[38;5;202m++++\033[38;5;208m////:-\`
+             .-:///\033[38;5;202m++\033[38;5;88mosssso\033[38;5;202m++\033[38;5;208m///:-.
+               \`.://\033[38;5;202m++\033[38;5;88mosso\033[38;5;202m++\033[38;5;208m//:.\`
+                  \`-:/\033[38;5;202m+\033[38;5;88moo\033[38;5;202m+\033[38;5;208m/:-\`
+                     \`-++-\`\033[0m
+
+  "
+  echo
+  echo
+  echo "Starting GitLab in $(pwd) on port ${host}:${port}"
+  echo
+  echo
+}
+
+foreman_start() {
+ exec env port=${port} host=${host} foreman start "$@"
+}
+
+db() {
+  foreman_start -c all=0,redis=1,postgresql=1,openldap=1,influxdb=1
+}
+
+app() {
+  print_port
+  foreman_start -c all=0,rails-web=1,rails-background-jobs=1,gitlab-workhorse=1,nginx=1,grafana=1,sshd=1,gitaly=1
+}
+
+grafana() {
+  foreman_start -c all=0,grafana=1
+}
+
+thin() {
+  exec /usr/bin/env RAILS_ENV=development support/exec-cd gitlab bundle exec thin --socket=$(pwd)/gitlab.socket start
+}
+
+all() {
+  print_port
+  foreman_start
+}
+
+case "x$1" in
+xdb)
+  db
+  ;;
+xapp)
+  app
+  ;;
+xgrafana)
+  grafana
+  ;;
+xthin)
+  thin
+  ;;
+x*)
+  all
+  ;;
+esac
